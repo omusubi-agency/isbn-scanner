@@ -112,6 +112,15 @@
         });
         video.srcObject = stream;
         await video.play();
+        try {
+          var vtrack = stream.getVideoTracks()[0];
+          if (vtrack && vtrack.getCapabilities) {
+            var caps = vtrack.getCapabilities();
+            if (caps && 'backgroundBlur' in caps) {
+              await vtrack.applyConstraints({ advanced: [{ backgroundBlur: false }] });
+            }
+          }
+        } catch (e) { /* 背景ぼかし制御は未対応。無視 */ }
         return true;
       } catch (e) {
         setStatus('カメラを利用できませんでした: ' + e + '（iOSではSafariもお試しください）');
