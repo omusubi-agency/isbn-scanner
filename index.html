@@ -25,6 +25,11 @@
     #backBtn { font-size: 18px; }
     .status { font-size: 18px; color: #cbd5e1; margin: 12px 0; min-height: 1.4em; overflow-wrap: anywhere; }
     .hint { font-size: 15px; color: #8b949e; margin-top: 8px; }
+    @media (max-width: 600px) {
+      .actions { flex-direction: column; max-width: 320px; }
+      .actions button { max-width: none; width: 100%; margin: 6px 0; }
+      #backBtn { display: block; width: 100%; max-width: 320px; margin: 6px auto; }
+    }
   </style>
 </head>
 <body>
