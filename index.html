@@ -70,7 +70,7 @@
     var video = document.getElementById('video');
     var canvas = document.getElementById('canvas');
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
-    var stream = null, scanning = false, lastDecode = 0;
+    var stream = null, scanning = false, frozen = false, lastDecode = 0;
 
     function setStatus(t) { statusEl.textContent = t; }
     function isIsbn(c) { return /^97[89]\d{10}$/.test(c); }
@@ -81,6 +81,12 @@
     fileInput.addEventListener('change', function () { decodeFile(fileInput.files[0]); fileInput.value = ''; });
     photoInput.addEventListener('change', function () { decodeFile(photoInput.files[0]); photoInput.value = ''; });
     document.getElementById('backBtn').addEventListener('click', function () {
+      if (frozen) {
+        frozen = false;
+        video.play();
+        setStatus('バーコードを合わせて「📸 撮影」を押してください。');
+        return;
+      }
       if (RETURN_URL) { location.href = RETURN_URL; }
     });
 
@@ -149,20 +155,24 @@
         setStatus('バーコードを画面に合わせて「📸 撮影」を押してください。');
         return;
       }
-      if (!video.videoWidth) { setStatus('カメラ準備中です。少し待って再度お試しください。'); return; }
-      setStatus('解析中…');
+      if (frozen) { return; }
+      if (!video.videoWidth) { setStatus('カメラ準備中です…'); return; }
       var c = document.createElement('canvas');
       c.width = video.videoWidth; c.height = video.videoHeight;
       var cx = c.getContext('2d');
       cx.drawImage(video, 0, 0, c.width, c.height);
+      video.pause();
+      frozen = true;
+      scanning = false;
+      setStatus('解析中…');
       try {
         var results = await readBarcodes(cx.getImageData(0, 0, c.width, c.height), { tryHarder: true, maxNumberOfSymbols: 20 });
         var codes = (results || []).map(function (r) { return r.text; });
         var isbn = codes.filter(isIsbn)[0];
         if (isbn) { finish(isbn); return; }
-        setStatus('ISBNを読み取れませんでした。位置を調整して「📸 撮影」をもう一度押してください。');
+        setStatus('ISBNを読み取れませんでした。「戻る」で撮り直してください。');
       } catch (e) {
-        setStatus('読み取りに失敗しました。もう一度お試しください。');
+        setStatus('ISBNを読み取れませんでした。「戻る」で撮り直してください。');
       }
     }
 
@@ -188,6 +198,7 @@
     }
 
     function finish(isbn) {
+      frozen = false;
       scanning = false;
       setStatus('ISBN 読み取り: ' + isbn + ' — 戻ります…');
       if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); }
