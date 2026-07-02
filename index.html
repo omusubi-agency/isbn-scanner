@@ -102,6 +102,11 @@
       startBtn.disabled = true;
       setStatus('カメラを起動しています…');
       if (!(await ensureCamera())) { startBtn.disabled = false; return; }
+      if (frozen) {
+        frozen = false;
+        video.play();
+        photoBtn.textContent = '撮影';
+      }
       scanning = true;
       setStatus('ISBNバーコードをカメラに合わせてください…');
       requestAnimationFrame(tick);
@@ -145,6 +150,7 @@
         setStatus('カメラを起動しています…');
         if (!(await ensureCamera())) { return; }
         scanning = false;
+        startBtn.disabled = false;
         photoBtn.textContent = '撮影';
         setStatus('バーコードを合わせて「撮影」を押してください。');
         return;
@@ -164,6 +170,7 @@
       video.pause();
       frozen = true;
       scanning = false;
+      startBtn.disabled = false;
       setStatus('解析中…');
       try {
         var results = await readBarcodes(cx.getImageData(0, 0, c.width, c.height), { tryHarder: true, maxNumberOfSymbols: 20 });
