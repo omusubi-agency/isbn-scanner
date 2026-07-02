@@ -81,12 +81,6 @@
     fileInput.addEventListener('change', function () { decodeFile(fileInput.files[0]); fileInput.value = ''; });
     photoInput.addEventListener('change', function () { decodeFile(photoInput.files[0]); photoInput.value = ''; });
     document.getElementById('backBtn').addEventListener('click', function () {
-      if (frozen) {
-        frozen = false;
-        video.play();
-        setStatus('バーコードを合わせて「📸 撮影」を押してください。');
-        return;
-      }
       if (RETURN_URL) { location.href = RETURN_URL; }
     });
 
@@ -151,12 +145,18 @@
         setStatus('カメラを起動しています…');
         if (!(await ensureCamera())) { return; }
         scanning = false;
-        photoBtn.textContent = '📸 撮影';
-        setStatus('バーコードを画面に合わせて「📸 撮影」を押してください。');
+        photoBtn.textContent = '撮影';
+        setStatus('バーコードを合わせて「撮影」を押してください。');
         return;
       }
-      if (frozen) { return; }
-      if (!video.videoWidth) { setStatus('カメラ準備中です…'); return; }
+      if (frozen) {
+        frozen = false;
+        video.play();
+        photoBtn.textContent = '撮影';
+        setStatus('バーコードを合わせて「撮影」を押してください。');
+        return;
+      }
+      if (!video.videoWidth) { setStatus('カメラ準備中です。少し待って再度お試しください。'); return; }
       var c = document.createElement('canvas');
       c.width = video.videoWidth; c.height = video.videoHeight;
       var cx = c.getContext('2d');
@@ -170,9 +170,11 @@
         var codes = (results || []).map(function (r) { return r.text; });
         var isbn = codes.filter(isIsbn)[0];
         if (isbn) { finish(isbn); return; }
-        setStatus('ISBNを読み取れませんでした。「戻る」で撮り直してください。');
+        photoBtn.textContent = '撮り直す';
+        setStatus('ISBNを読み取れませんでした。「撮り直す」でもう一度撮ってください。');
       } catch (e) {
-        setStatus('ISBNを読み取れませんでした。「戻る」で撮り直してください。');
+        photoBtn.textContent = '撮り直す';
+        setStatus('ISBNを読み取れませんでした。「撮り直す」でもう一度撮ってください。');
       }
     }
 
