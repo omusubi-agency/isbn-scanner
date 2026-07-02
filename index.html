@@ -12,16 +12,18 @@
       font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
       margin: 0; padding: 16px; background: #0f1115; color: #f0f2f5; text-align: center;
     }
-    h1 { font-size: 18px; margin: 0 0 10px; }
+    h1 { font-size: 24px; margin: 0 0 10px; }
     #video { width: 100%; max-width: 480px; border-radius: 10px; background: #000; }
     button {
-      padding: 12px 20px; border: none; border-radius: 8px; font-size: 16px;
+      padding: 12px 20px; border: none; border-radius: 8px; font-size: 20px;
       background: #2563eb; color: #fff; cursor: pointer; margin: 8px 4px;
     }
     button.sub { background: #374151; }
     button:disabled { opacity: .5; }
-    .status { font-size: 14px; color: #cbd5e1; margin: 12px 0; min-height: 1.4em; overflow-wrap: anywhere; }
-    .hint { font-size: 12px; color: #8b949e; margin-top: 8px; }
+    .actions { display: flex; justify-content: center; gap: 8px; max-width: 480px; margin: 0 auto; }
+    .actions button { flex: 1; max-width: 150px; margin: 8px 0; padding: 12px 8px; font-size: 18px; }
+    .status { font-size: 18px; color: #cbd5e1; margin: 12px 0; min-height: 1.4em; overflow-wrap: anywhere; }
+    .hint { font-size: 15px; color: #8b949e; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -29,7 +31,13 @@
   <video id="video" playsinline muted autoplay></video>
   <canvas id="canvas" style="display:none"></canvas>
   <div class="status" id="status">「スキャン開始」を押してカメラを起動してください。</div>
-  <button id="startBtn">スキャン開始</button>
+  <input id="fileInput" type="file" accept="image/*" hidden>
+  <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+  <div class="actions">
+    <button id="fileBtn" class="sub">ファイルを選択</button>
+    <button id="startBtn">スキャン開始</button>
+    <button id="photoBtn" class="sub">写真を撮る</button>
+  </div>
   <button id="backBtn" class="sub">戻る</button>
   <div class="hint">ISBNバーコード（978/979で始まる方）をカメラに大きく写してください。<br>下の価格コード(192)は自動で無視します。</div>
 
@@ -49,6 +57,10 @@
     var RETURN_URL = new URLSearchParams(location.search).get('return') || '';
     var statusEl = document.getElementById('status');
     var startBtn = document.getElementById('startBtn');
+    var fileBtn = document.getElementById('fileBtn');
+    var photoBtn = document.getElementById('photoBtn');
+    var fileInput = document.getElementById('fileInput');
+    var photoInput = document.getElementById('photoInput');
     var video = document.getElementById('video');
     var canvas = document.getElementById('canvas');
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -58,9 +70,27 @@
     function isIsbn(c) { return /^97[89]\d{10}$/.test(c); }
 
     startBtn.addEventListener('click', start);
+    fileBtn.addEventListener('click', function () { fileInput.click(); });
+    photoBtn.addEventListener('click', function () { photoInput.click(); });
+    fileInput.addEventListener('change', function () { decodeFile(fileInput.files[0]); fileInput.value = ''; });
+    photoInput.addEventListener('change', function () { decodeFile(photoInput.files[0]); photoInput.value = ''; });
     document.getElementById('backBtn').addEventListener('click', function () {
       if (RETURN_URL) { location.href = RETURN_URL; }
     });
+
+    async function decodeFile(file) {
+      if (!file) { return; }
+      setStatus('画像からISBNバーコードを読み取っています…');
+      try {
+        var results = await readBarcodes(file, { tryHarder: true, maxNumberOfSymbols: 20 });
+        var codes = (results || []).map(function (r) { return r.text; });
+        var isbn = codes.filter(isIsbn)[0];
+        if (isbn) { finish(isbn); return; }
+        setStatus('ISBNバーコードを読み取れませんでした。もう一度お試しください。');
+      } catch (e) {
+        setStatus('ISBNバーコードを読み取れませんでした。もう一度お試しください。');
+      }
+    }
 
     async function start() {
       startBtn.disabled = true;
