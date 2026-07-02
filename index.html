@@ -23,14 +23,12 @@
     .actions { display: flex; justify-content: center; gap: 8px; max-width: 480px; margin: 0 auto; }
     .actions button { flex: 1 1 0; min-width: 0; max-width: 150px; margin: 8px 0; padding: 12px 8px; font-size: 18px; }
     #backBtn { font-size: 18px; }
-    #photoBtn { display: none; }
     .status { font-size: 18px; color: #cbd5e1; margin: 12px 0; min-height: 1.4em; overflow-wrap: anywhere; }
     .hint { font-size: 15px; color: #8b949e; margin-top: 8px; }
     @media (max-width: 600px) {
       .actions { flex-direction: column; max-width: 320px; }
       .actions button { max-width: none; width: 100%; margin: 6px 0; }
       #backBtn { display: block; width: 100%; max-width: 320px; margin: 6px auto; }
-      #photoBtn { display: block; }
     }
   </style>
 </head>
@@ -40,7 +38,6 @@
   <canvas id="canvas" style="display:none"></canvas>
   <div class="status" id="status">「スキャン開始」を押してカメラを起動してください。</div>
   <input id="fileInput" type="file" accept="image/*" hidden>
-  <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
   <div class="actions">
     <button id="fileBtn" class="sub">ファイルを選択</button>
     <button id="startBtn">スキャン開始</button>
@@ -68,7 +65,6 @@
     var fileBtn = document.getElementById('fileBtn');
     var photoBtn = document.getElementById('photoBtn');
     var fileInput = document.getElementById('fileInput');
-    var photoInput = document.getElementById('photoInput');
     var video = document.getElementById('video');
     var canvas = document.getElementById('canvas');
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -79,9 +75,8 @@
 
     startBtn.addEventListener('click', start);
     fileBtn.addEventListener('click', function () { fileInput.click(); });
-    photoBtn.addEventListener('click', function () { photoInput.click(); });
+    photoBtn.addEventListener('click', onPhoto);
     fileInput.addEventListener('change', function () { decodeFile(fileInput.files[0]); fileInput.value = ''; });
-    photoInput.addEventListener('change', function () { decodeFile(photoInput.files[0]); photoInput.value = ''; });
     document.getElementById('backBtn').addEventListener('click', function () {
       if (RETURN_URL) { location.href = RETURN_URL; }
     });
@@ -103,18 +98,50 @@
     async function start() {
       startBtn.disabled = true;
       setStatus('カメラを起動しています…');
+      if (!(await ensureCamera())) { startBtn.disabled = false; return; }
+      scanning = true;
+      setStatus('ISBNバーコードをカメラに合わせてください…');
+      requestAnimationFrame(tick);
+    }
+
+    async function ensureCamera() {
+      if (stream) { return true; }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' } }
         });
         video.srcObject = stream;
         await video.play();
-        scanning = true;
-        setStatus('ISBNバーコードをカメラに合わせてください…');
-        requestAnimationFrame(tick);
+        return true;
       } catch (e) {
-        startBtn.disabled = false;
         setStatus('カメラを利用できませんでした: ' + e + '（iOSではSafariもお試しください）');
+        return false;
+      }
+    }
+
+    async function onPhoto() {
+      if (!stream) {
+        setStatus('カメラを起動しています…');
+        if (!(await ensureCamera())) { return; }
+        scanning = false;
+        photoBtn.textContent = '📸 撮影';
+        setStatus('バーコードを画面に合わせて「📸 撮影」を押してください。');
+        return;
+      }
+      if (!video.videoWidth) { setStatus('カメラ準備中です。少し待って再度お試しください。'); return; }
+      setStatus('解析中…');
+      var c = document.createElement('canvas');
+      c.width = video.videoWidth; c.height = video.videoHeight;
+      var cx = c.getContext('2d');
+      cx.drawImage(video, 0, 0, c.width, c.height);
+      try {
+        var results = await readBarcodes(cx.getImageData(0, 0, c.width, c.height), { tryHarder: true, maxNumberOfSymbols: 20 });
+        var codes = (results || []).map(function (r) { return r.text; });
+        var isbn = codes.filter(isIsbn)[0];
+        if (isbn) { finish(isbn); return; }
+        setStatus('ISBNを読み取れませんでした。位置を調整して「📸 撮影」をもう一度押してください。');
+      } catch (e) {
+        setStatus('読み取りに失敗しました。もう一度お試しください。');
       }
     }
 
